@@ -1,6 +1,5 @@
 <template>
   <div>
-    dddd
     <svg @mousemove="mouseover" :width="width" :height="height" id="d3-svg">
       <g :style="{transform: `translate(${margin.left}px, ${margin.top}px)`}">
         <path class="area" :d="paths.area" />
@@ -232,7 +231,7 @@ export default {
             color: color[lineIndex]
           }
         }
-        if (lineIndex == 1 && index % 7 < 5) {
+        if (lineIndex === 1 && index % 7 < 5) {
           this.animatedData[lineIndex][this.animatedData[lineIndex].length] = {
             date: moment().add(index, 'day').format('YYYY-MM-DD'),
             value: Math.ceil(Math.random() * 100),
@@ -240,7 +239,7 @@ export default {
           }
         }
 
-        if (lineIndex == 2 && index % 7 < 2) {
+        if (lineIndex === 2 && index % 7 < 2) {
           this.animatedData[lineIndex][this.animatedData[lineIndex].length] = {
             date: moment().add(index, 'day').format('YYYY-MM-DD'),
             value: Math.ceil(Math.random() * 100),
@@ -248,7 +247,7 @@ export default {
           }
         }
 
-        if (lineIndex == 3 && index % 7 < 1) {
+        if (lineIndex === 3 && index % 7 < 1) {
           this.animatedData[lineIndex][this.animatedData[lineIndex].length] = {
             date: moment().add(index, 'day').format('YYYY-MM-DD'),
             value: Math.ceil(Math.random() * 100),
