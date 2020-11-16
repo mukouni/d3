@@ -1,10 +1,10 @@
 <template>
   <div>
     <svg @mousemove="mouseover" :width="width" :height="height" id="d3-svg">
-      <g :style="{transform: `translate(${margin.left}px, ${margin.top}px)`}">
+      <g :style="{ transform: `translate(${margin.left}px, ${margin.top}px)` }">
         <path class="area" :d="paths.area" />
         <template v-for="(line, index) in paths.lines">
-          {{line}}
+          {{ line }}
           <path
             class="line"
             :d="line"
@@ -36,8 +36,8 @@ export default {
       default: () => ({
         left: 10,
         right: 0,
-        top: 10,
-        bottom: 10
+        top: 0,
+        bottom: 30
       })
     },
     ceil: {
@@ -82,7 +82,7 @@ export default {
     animatedData (val) {
       this.viewDates = this.animatedData
         .reduce((all, line) => {
-          let lineDates = line.map(point => moment(point.date).valueOf())
+          let lineDates = line.map((point) => moment(point.date).valueOf())
           all = Array.from(new Set(all.concat(lineDates)))
           return all
         }, [])
@@ -100,8 +100,8 @@ export default {
     initialize () {
       this.scaled.x = d3.scaleTime().range([0, this.padded.width])
       this.scaled.y = d3.scaleLinear().range([this.padded.height, 0])
-      d3.axisLeft().scale(this.scaled.x)
-      d3.axisBottom().scale(this.scaled.y)
+      // d3.axisLeft().scale(this.scaled.x)
+      // d3.axisBottom().scale(this.scaled.y)
     },
     tweenData (newData, oldData) {
       // const vm = this
@@ -122,14 +122,14 @@ export default {
     update () {
       let allDate = this.viewDates
 
-      let startIndex = 0
-      let endIndex = allDate.length - 1
+      // let startIndex = 0
+      // let endIndex = allDate.length - 1
       // let endIndex = d3.max(
       //   this.animatedData.map(line => line.length),
       //   (d, i) => d
       // )
 
-      this.scaled.x.domain([startIndex, endIndex])
+      this.scaled.x.domain([allDate[0], allDate.slice(-1)])
       this.scaled.y.domain([
         this.minValue(this.animatedData),
         this.maxValue(this.animatedData)
@@ -141,13 +141,11 @@ export default {
         }
         data.forEach((data, index) => {
           let findIndex = allDate.findIndex(
-            date => date === moment(data.date).valueOf()
+            (date) => date === moment(data.date).valueOf()
           )
           if (findIndex > -1) {
             this.points[lineIndex].push({
-              x: this.scaled.x(
-                findIndex
-              ),
+              x: this.scaled.x(new Date(data.date)),
               y: this.scaled.y(data.value),
               max: this.height
             })
@@ -163,10 +161,14 @@ export default {
         this.paths.lines[index] = this.createLine(line)
       })
 
-      this.svg.append('g')
-        .attr('transform', 'translate(0,' + this.padded.height + ')')
+      this.svg
+        .append('g')
+        .attr('transform', 'translate(30,' + this.padded.height + ')')
         .call(d3.axisBottom(this.scaled.x))
-      this.svg.append('g')
+
+      this.svg
+        .append('g')
+        .attr('transform', 'translate(' + 30 + ',0)')
         .call(d3.axisLeft(this.scaled.y))
     },
     mouseover ({ offsetX }) {
@@ -183,24 +185,24 @@ export default {
     },
     createArea: d3
       .area()
-      .x(d => d.x)
-      .y0(d => d.max)
-      .y1(d => d.y),
+      .x((d) => d.x)
+      .y0((d) => d.max)
+      .y1((d) => d.y),
 
     createLine: d3
       .line()
-      .x(d => d.x)
-      .y(d => d.y),
+      .x((d) => d.x)
+      .y((d) => d.y),
 
     createValueSelector: d3
       .area()
-      .x(d => d.x)
-      .y0(d => d.max)
+      .x((d) => d.x)
+      .y0((d) => d.max)
       .y1(0),
     maxDate (lines) {
       let maxDate = ''
       lines.forEach((line, index) => {
-        let lineMax = d3.max(line, d => moment(d.date).valueOf())
+        let lineMax = d3.max(line, (d) => moment(d.date).valueOf())
         if (lineMax > maxDate || index === 0) {
           maxDate = lineMax
         }
@@ -210,7 +212,7 @@ export default {
     minDate (lines) {
       let minDate = ''
       lines.forEach((line, index) => {
-        let lineMin = d3.min(line, d => moment(d.date).valueOf())
+        let lineMin = d3.min(line, (d) => moment(d.date).valueOf())
         if (lineMin < minDate || index === 0) {
           minDate = lineMin
         }
@@ -220,7 +222,7 @@ export default {
     maxValue (lines) {
       let maxValue = ''
       lines.forEach((line, index) => {
-        let lineMax = d3.max(line, d => d.value)
+        let lineMax = d3.max(line, (d) => d.value)
         if (lineMax > maxValue || index === 0) {
           maxValue = lineMax
         }
@@ -230,7 +232,7 @@ export default {
     minValue (lines) {
       let minValue = ''
       lines.forEach((line, index) => {
-        let lineMin = d3.min(line, d => d.value)
+        let lineMin = d3.min(line, (d) => d.value)
         if (lineMin < minValue || index === 0) {
           minValue = lineMin
         }
@@ -257,14 +259,20 @@ export default {
       [...new Array(3 * 7)].forEach((_, index) => {
         if (lineIndex === 0 || lineIndex === 4) {
           this.animatedData[lineIndex][this.animatedData[lineIndex].length] = {
-            date: moment().startOf('day').add(index, 'day').format('YYYY-MM-DD'),
+            date: moment()
+              .startOf('day')
+              .add(index, 'day')
+              .format('YYYY-MM-DD'),
             value: Math.ceil(Math.random() * 100),
             color: color[lineIndex]
           }
         }
         if (lineIndex === 1 && index % 7 < 5) {
           this.animatedData[lineIndex][this.animatedData[lineIndex].length] = {
-            date: moment().startOf('day').add(index, 'day').format('YYYY-MM-DD'),
+            date: moment()
+              .startOf('day')
+              .add(index, 'day')
+              .format('YYYY-MM-DD'),
             value: Math.ceil(Math.random() * 100),
             color: color[lineIndex]
           }
@@ -272,7 +280,10 @@ export default {
 
         if (lineIndex === 2 && index % 7 < 2) {
           this.animatedData[lineIndex][this.animatedData[lineIndex].length] = {
-            date: moment().startOf('day').add(index, 'day').format('YYYY-MM-DD'),
+            date: moment()
+              .startOf('day')
+              .add(index, 'day')
+              .format('YYYY-MM-DD'),
             value: Math.ceil(Math.random() * 100),
             color: color[lineIndex]
           }
@@ -280,7 +291,10 @@ export default {
 
         if (lineIndex === 3 && index % 7 < 1) {
           this.animatedData[lineIndex][this.animatedData[lineIndex].length] = {
-            date: moment().startOf('day').add(index, 'day').format('YYYY-MM-DD'),
+            date: moment()
+              .startOf('day')
+              .add(index, 'day')
+              .format('YYYY-MM-DD'),
             value: Math.ceil(Math.random() * 100),
             color: color[lineIndex]
           }
@@ -298,5 +312,4 @@ export default {
 </script>
 
 <!-- Add "scoped" attribute to limit CSS to this component only -->
-<style scoped>
-</style>
+<style scoped></style>
