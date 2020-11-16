@@ -34,7 +34,7 @@ export default {
     margin: {
       type: Object,
       default: () => ({
-        left: 0,
+        left: 10,
         right: 0,
         top: 10,
         bottom: 10
@@ -47,6 +47,8 @@ export default {
   },
   data () {
     return {
+      svg: null,
+      viewDates: [],
       width: 0,
       height: 200,
       paths: {
@@ -75,6 +77,18 @@ export default {
     data: function dataChanged (newData, oldData) {},
     width: function widthChanged (data) {
       this.initialize()
+      this.update()
+    },
+    animatedData (val) {
+      this.viewDates = this.animatedData
+        .reduce((all, line) => {
+          let lineDates = line.map(point => moment(point.date).valueOf())
+          all = Array.from(new Set(all.concat(lineDates)))
+          return all
+        }, [])
+        .sort((a, b) => {
+          return a - b
+        })
       this.update()
     }
   },
@@ -106,13 +120,16 @@ export default {
       animate()
     },
     update () {
-      this.scaled.x.domain([
-        0,
-        d3.max(
-          this.animatedData.map(line => line.length),
-          (d, i) => d
-        )
-      ])
+      let allDate = this.viewDates
+
+      let startIndex = 0
+      let endIndex = allDate.length - 1
+      // let endIndex = d3.max(
+      //   this.animatedData.map(line => line.length),
+      //   (d, i) => d
+      // )
+
+      this.scaled.x.domain([startIndex, endIndex])
       this.scaled.y.domain([
         this.minValue(this.animatedData),
         this.maxValue(this.animatedData)
@@ -123,11 +140,18 @@ export default {
           this.points[lineIndex] = []
         }
         data.forEach((data, index) => {
-          this.points[lineIndex].push({
-            x: this.scaled.x(index),
-            y: this.scaled.y(data.value),
-            max: this.height
-          })
+          let findIndex = allDate.findIndex(
+            date => date === moment(data.date).valueOf()
+          )
+          if (findIndex > -1) {
+            this.points[lineIndex].push({
+              x: this.scaled.x(
+                findIndex
+              ),
+              y: this.scaled.y(data.value),
+              max: this.height
+            })
+          }
         })
       }
 
@@ -138,6 +162,12 @@ export default {
         }
         this.paths.lines[index] = this.createLine(line)
       })
+
+      this.svg.append('g')
+        .attr('transform', 'translate(0,' + this.padded.height + ')')
+        .call(d3.axisBottom(this.scaled.x))
+      this.svg.append('g')
+        .call(d3.axisLeft(this.scaled.y))
     },
     mouseover ({ offsetX }) {
       if (this.points.length > 0) {
@@ -219,6 +249,7 @@ export default {
   },
 
   mounted () {
+    this.svg = d3.select('#d3-svg')
     this.animatedData = []
     let color = ['#7cb55d', '#5d72b5', '#d9ca64', '#b5785d', '#5daeb5'];
     [...new Array(5)].forEach((_, lineIndex) => {
@@ -226,14 +257,14 @@ export default {
       [...new Array(3 * 7)].forEach((_, index) => {
         if (lineIndex === 0 || lineIndex === 4) {
           this.animatedData[lineIndex][this.animatedData[lineIndex].length] = {
-            date: moment().add(index, 'day'),
+            date: moment().startOf('day').add(index, 'day').format('YYYY-MM-DD'),
             value: Math.ceil(Math.random() * 100),
             color: color[lineIndex]
           }
         }
         if (lineIndex === 1 && index % 7 < 5) {
           this.animatedData[lineIndex][this.animatedData[lineIndex].length] = {
-            date: moment().add(index, 'day').format('YYYY-MM-DD'),
+            date: moment().startOf('day').add(index, 'day').format('YYYY-MM-DD'),
             value: Math.ceil(Math.random() * 100),
             color: color[lineIndex]
           }
@@ -241,7 +272,7 @@ export default {
 
         if (lineIndex === 2 && index % 7 < 2) {
           this.animatedData[lineIndex][this.animatedData[lineIndex].length] = {
-            date: moment().add(index, 'day').format('YYYY-MM-DD'),
+            date: moment().startOf('day').add(index, 'day').format('YYYY-MM-DD'),
             value: Math.ceil(Math.random() * 100),
             color: color[lineIndex]
           }
@@ -249,7 +280,7 @@ export default {
 
         if (lineIndex === 3 && index % 7 < 1) {
           this.animatedData[lineIndex][this.animatedData[lineIndex].length] = {
-            date: moment().add(index, 'day').format('YYYY-MM-DD'),
+            date: moment().startOf('day').add(index, 'day').format('YYYY-MM-DD'),
             value: Math.ceil(Math.random() * 100),
             color: color[lineIndex]
           }
