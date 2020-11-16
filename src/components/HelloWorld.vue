@@ -224,7 +224,7 @@ export default {
     [...new Array(5)].forEach((_, lineIndex) => {
       if (!this.animatedData[lineIndex]) this.animatedData[lineIndex] = [];
       [...new Array(3 * 7)].forEach((_, index) => {
-        if (lineIndex == 0 || lineIndex == 4) {
+        if (lineIndex === 0 || lineIndex === 4) {
           this.animatedData[lineIndex][this.animatedData[lineIndex].length] = {
             date: moment().add(index, 'day'),
             value: Math.ceil(Math.random() * 100),
