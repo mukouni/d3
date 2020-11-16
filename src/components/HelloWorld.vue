@@ -34,9 +34,9 @@ export default {
     margin: {
       type: Object,
       default: () => ({
-        left: 10,
+        left: 0,
         right: 0,
-        top: 0,
+        top: 10,
         bottom: 30
       })
     },
@@ -133,7 +133,7 @@ export default {
       this.scaled.y.domain([
         this.minValue(this.animatedData),
         this.maxValue(this.animatedData)
-      ])
+      ]).nice()
       this.points = []
       for (const [lineIndex, data] of this.animatedData.entries()) {
         if (!this.points[lineIndex]) {
@@ -163,13 +163,13 @@ export default {
 
       this.svg
         .append('g')
-        .attr('transform', 'translate(30,' + this.padded.height + ')')
+        .attr('transform', 'translate(30,' + (this.padded.height + 10) + ')')
         .call(d3.axisBottom(this.scaled.x))
 
       this.svg
         .append('g')
-        .attr('transform', 'translate(' + 30 + ',0)')
-        .call(d3.axisLeft(this.scaled.y))
+        .attr('transform', 'translate(' + 30 + ',10)')
+        .call(d3.axisLeft(this.scaled.y).ticks(3))
     },
     mouseover ({ offsetX }) {
       if (this.points.length > 0) {
