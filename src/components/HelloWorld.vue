@@ -1,10 +1,11 @@
 <template>
   <div>
     <svg @mousemove="mouseover" :width="width" :height="height" id="d3-svg">
+      <g id="xAxis"></g>
+      <g id="yAxis"></g>
       <g :style="{ transform: `translate(${margin.left}px, ${margin.top}px)` }">
         <path class="area" :d="paths.area" />
         <template v-for="(line, index) in paths.lines">
-          {{ line }}
           <path
             class="line"
             :d="line"
@@ -16,6 +17,9 @@
         </template>
         <path class="selector" :d="paths.selector" />
       </g>
+      <!-- <template v-for="(line, index) in animatedData">
+        <g :style="{fill: line[0].color}" :key="index" :id="`points${index}`"></g>
+      </template> -->
     </svg>
   </div>
 </template>
@@ -34,7 +38,7 @@ export default {
     margin: {
       type: Object,
       default: () => ({
-        left: 0,
+        left: 30,
         right: 0,
         top: 10,
         bottom: 30
@@ -76,8 +80,8 @@ export default {
   watch: {
     data: function dataChanged (newData, oldData) {},
     width: function widthChanged (data) {
-      this.initialize()
-      this.update()
+      this.updateAxis()
+      this.updateLine()
     },
     animatedData (val) {
       this.viewDates = this.animatedData
@@ -89,19 +93,15 @@ export default {
         .sort((a, b) => {
           return a - b
         })
-      this.update()
+
+      this.updateAxis()
+      this.updateLine()
     }
   },
   methods: {
     onResize () {
       this.width = this.$el.offsetWidth
       // this.height = this.$el.offsetHeight;
-    },
-    initialize () {
-      this.scaled.x = d3.scaleTime().range([0, this.padded.width])
-      this.scaled.y = d3.scaleLinear().range([this.padded.height, 0])
-      // d3.axisLeft().scale(this.scaled.x)
-      // d3.axisBottom().scale(this.scaled.y)
     },
     tweenData (newData, oldData) {
       // const vm = this
@@ -119,28 +119,36 @@ export default {
       //   .start();
       animate()
     },
-    update () {
-      let allDate = this.viewDates
+    updateAxis () {
+      this.scaled.x = d3.scaleTime().range([0, this.padded.width])
+      this.scaled.y = d3.scaleLinear().range([this.padded.height, 0])
 
-      // let startIndex = 0
-      // let endIndex = allDate.length - 1
-      // let endIndex = d3.max(
-      //   this.animatedData.map(line => line.length),
-      //   (d, i) => d
-      // )
-
-      this.scaled.x.domain([allDate[0], allDate.slice(-1)])
+      this.scaled.x.domain([this.viewDates[0], this.viewDates.slice(-1)])
       this.scaled.y.domain([
         this.minValue(this.animatedData),
         this.maxValue(this.animatedData)
       ]).nice()
+      // d3.axisLeft().scale(this.scaled.x)
+      // d3.axisBottom().scale(this.scaled.y)
+
+      this.svg
+        .selectAll('#xAxis')
+        .attr('transform', 'translate(30,' + (this.padded.height + 10) + ')')
+        .call(d3.axisBottom(this.scaled.x))
+
+      this.svg
+        .selectAll('#yAxis')
+        .attr('transform', 'translate(' + 30 + ',10)')
+        .call(d3.axisLeft(this.scaled.y).ticks(3))
+    },
+    updateLine () {
       this.points = []
       for (const [lineIndex, data] of this.animatedData.entries()) {
         if (!this.points[lineIndex]) {
           this.points[lineIndex] = []
         }
         data.forEach((data, index) => {
-          let findIndex = allDate.findIndex(
+          let findIndex = this.viewDates.findIndex(
             (date) => date === moment(data.date).valueOf()
           )
           if (findIndex > -1) {
@@ -160,16 +168,6 @@ export default {
         }
         this.paths.lines[index] = this.createLine(line)
       })
-
-      this.svg
-        .append('g')
-        .attr('transform', 'translate(30,' + (this.padded.height + 10) + ')')
-        .call(d3.axisBottom(this.scaled.x))
-
-      this.svg
-        .append('g')
-        .attr('transform', 'translate(' + 30 + ',10)')
-        .call(d3.axisLeft(this.scaled.y).ticks(3))
     },
     mouseover ({ offsetX }) {
       if (this.points.length > 0) {
@@ -252,6 +250,7 @@ export default {
 
   mounted () {
     this.svg = d3.select('#d3-svg')
+
     this.animatedData = []
     let color = ['#7cb55d', '#5d72b5', '#d9ca64', '#b5785d', '#5daeb5'];
     [...new Array(5)].forEach((_, lineIndex) => {
@@ -302,6 +301,7 @@ export default {
       })
     })
 
+    this.updateAxis()
     window.addEventListener('resize', this.onResize)
     this.onResize()
   },
