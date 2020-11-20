@@ -1,9 +1,14 @@
 <template>
   <div>
     <svg @mousemove="mouseover" :width="width" :height="height" id="d3-svg">
-      <g id="xAxis"></g>
-      <g id="yAxis"></g>
-      <g :style="{ transform: `translate(${margin.left}px, ${margin.top}px)` }">
+      <g id="x-axis" :style="{ transform: `translate(${0}px, ${padded.height + 10}px)` }" />
+      <g id="x-axis2" :style="{ transform: `translate(${0}px, ${padded.height - 20}px)` }" />
+      <g
+        id="y-axis"
+        :style="{ transform: `translate(${margin.left}px, ${margin.top}px)` }"
+        ref="yAxis"
+      />
+      <g :style="{ transform: `translate(${0}px, ${margin.top}px)` }">
         <path class="area" :d="paths.area" />
         <template v-for="(line, index) in paths.lines">
           <path
@@ -19,13 +24,15 @@
       </g>
       <!-- <template v-for="(line, index) in animatedData">
         <g :style="{fill: line[0].color}" :key="index" :id="`points${index}`"></g>
-      </template> -->
+      </template>-->
     </svg>
   </div>
 </template>
 
 <script>
-import * as d3 from 'd3'
+// import * as d3 from 'd3'
+import * as d3 from 'd3-scale'
+
 import TWEEN from 'tween.js'
 import moment from 'moment'
 export default {
@@ -39,7 +46,7 @@ export default {
       type: Object,
       default: () => ({
         left: 30,
-        right: 0,
+        right: 30,
         top: 10,
         bottom: 30
       })
@@ -52,6 +59,7 @@ export default {
   data () {
     return {
       svg: null,
+      yAxisWidth: 30,
       viewDates: [],
       width: 0,
       height: 200,
@@ -86,7 +94,7 @@ export default {
     animatedData (val) {
       this.viewDates = this.animatedData
         .reduce((all, line) => {
-          let lineDates = line.map((point) => moment(point.date).valueOf())
+          let lineDates = line.map(point => moment(point.date).valueOf())
           all = Array.from(new Set(all.concat(lineDates)))
           return all
         }, [])
@@ -119,26 +127,86 @@ export default {
       //   .start();
       animate()
     },
+
     updateAxis () {
-      this.scaled.x = d3.scaleTime().range([0, this.padded.width])
-      this.scaled.y = d3.scaleLinear().range([this.padded.height, 0])
+      if (this.padded.width < 0) return
+      let allDate = d3.timeDay
+        .range(this.viewDates[0], this.viewDates.slice(-1)[0])
+        .map(date => {
+          return moment(date).format('L')
+        })
+      let paddingOuter = 0.5
+      let paddingOuterWidth = this.padded.width / (allDate.length * paddingOuter * 2)
+      let maxAxisLabelNum = Math.floor((this.padded.width - paddingOuterWidth) / 65)
+      let stepWidth = Math.ceil(allDate.length / maxAxisLabelNum)
 
-      this.scaled.x.domain([this.viewDates[0], this.viewDates.slice(-1)])
-      this.scaled.y.domain([
-        this.minValue(this.animatedData),
-        this.maxValue(this.animatedData)
-      ]).nice()
-      // d3.axisLeft().scale(this.scaled.x)
-      // d3.axisBottom().scale(this.scaled.y)
+      let xAxisLabels = []
+      if (maxAxisLabelNum < allDate.length) {
+        allDate.forEach((date, index) => {
+          if (index === 0 || index % stepWidth === 0) {
+            xAxisLabels.push(date)
+          }
+        })
+      } else {
+        xAxisLabels = allDate
+      }
+      console.log(this.viewDates[0], this.viewDates.slice(-1)[0], xAxisLabels)
+      let scaleBand = d3
+        .scaleBand()
+        .range([this.margin.left, this.padded.width + this.margin.left])
+        .domain(allDate)
+        .paddingOuter(paddingOuter)
+
+      this.scaled.x = d3
+        .scaleLinear()
+        .range([this.margin.left, this.padded.width + this.margin.left])
+        .domain([this.viewDates[0], this.viewDates.slice(-1)])
+
+      this.scaled.y = d3
+        .scaleLinear()
+        .range([this.padded.height, 0])
+        .domain([
+          this.minValue(this.animatedData),
+          this.maxValue(this.animatedData)
+        ])
+        .nice()
+      console.log(xAxisLabels)
+      // let gXAxisLabels = this.svg
+      //   .select('#x-axis')
+      //   .selectAll('g')
+      //   .data(xAxisLabels)
+
+      // console.log(scaleBand.step(), scaleBand.bandwidth(), scaleBand.step() === scaleBand.bandwidth())
+      // let enter = gXAxisLabels.enter()
+      // enter
+      //   .append('g')
+      //   .property('class', 'tick')
+      //   .attr('opacity', '1')
+      //   .attr('stroke', 'currentColor')
+      //   .attr('transform', (d, i) => { return `translate(${(allDate.findIndex(date => date === d) + 0) * scaleBand.step()},0)` })
+      //   .append('line')
+      //   .attr('stroke', 'currentColor')
+      //   .attr('y2', '6')
+      // gXAxisLabels.exit().remove()
 
       this.svg
-        .selectAll('#xAxis')
-        .attr('transform', 'translate(30,' + (this.padded.height + 10) + ')')
-        .call(d3.axisBottom(this.scaled.x))
-
+        .selectAll('#x-axis')
+        // .attr('transform', 'translate(30,' + (this.padded.height + 10) + ')')
+        .call(
+          d3.axisBottom(
+            d3
+              .scaleTime()
+              .domain([moment(this.viewDates[0]).add(-1, 'day').format(), moment(this.viewDates.slice(-1)[0]).add(1, 'day').toDate()])
+              .range([this.margin.left, this.padded.width + this.margin.left])
+          )
+        )
       this.svg
-        .selectAll('#yAxis')
-        .attr('transform', 'translate(' + 30 + ',10)')
+        .selectAll('#x-axis2')
+        // .attr('transform', 'translate(30,' + (this.padded.height + 10) + ')')
+        .call(d3.axisBottom(scaleBand))
+      this.svg
+        .selectAll('#y-axis')
+        // .attr('transform', 'translate(' + 30 + ',10)')
         .call(d3.axisLeft(this.scaled.y).ticks(3))
     },
     updateLine () {
@@ -149,11 +217,11 @@ export default {
         }
         data.forEach((data, index) => {
           let findIndex = this.viewDates.findIndex(
-            (date) => date === moment(data.date).valueOf()
+            date => date === moment(data.date).valueOf()
           )
           if (findIndex > -1) {
             this.points[lineIndex].push({
-              x: this.scaled.x(new Date(data.date)),
+              x: this.scaled.x(moment(data.date).valueOf()),
               y: this.scaled.y(data.value),
               max: this.height
             })
@@ -162,12 +230,12 @@ export default {
       }
 
       // this.paths.area = this.createArea(this.points);
-      this.points.forEach((line, index) => {
-        if (!this.paths.lines[index]) {
-          this.paths.lines[index] = {}
-        }
-        this.paths.lines[index] = this.createLine(line)
-      })
+      // this.points.forEach((line, index) => {
+      //   if (!this.paths.lines[index]) {
+      //     this.paths.lines[index] = {}
+      //   }
+      //   this.paths.lines[index] = this.createLine(line)
+      // })
     },
     mouseover ({ offsetX }) {
       if (this.points.length > 0) {
@@ -183,24 +251,24 @@ export default {
     },
     createArea: d3
       .area()
-      .x((d) => d.x)
-      .y0((d) => d.max)
-      .y1((d) => d.y),
+      .x(d => d.x)
+      .y0(d => d.max)
+      .y1(d => d.y),
 
     createLine: d3
       .line()
-      .x((d) => d.x)
-      .y((d) => d.y),
+      .x(d => d.x)
+      .y(d => d.y),
 
     createValueSelector: d3
       .area()
-      .x((d) => d.x)
-      .y0((d) => d.max)
+      .x(d => d.x)
+      .y0(d => d.max)
       .y1(0),
     maxDate (lines) {
       let maxDate = ''
       lines.forEach((line, index) => {
-        let lineMax = d3.max(line, (d) => moment(d.date).valueOf())
+        let lineMax = d3.max(line, d => moment(d.date).valueOf())
         if (lineMax > maxDate || index === 0) {
           maxDate = lineMax
         }
@@ -210,7 +278,7 @@ export default {
     minDate (lines) {
       let minDate = ''
       lines.forEach((line, index) => {
-        let lineMin = d3.min(line, (d) => moment(d.date).valueOf())
+        let lineMin = d3.min(line, d => moment(d.date).valueOf())
         if (lineMin < minDate || index === 0) {
           minDate = lineMin
         }
@@ -220,7 +288,7 @@ export default {
     maxValue (lines) {
       let maxValue = ''
       lines.forEach((line, index) => {
-        let lineMax = d3.max(line, (d) => d.value)
+        let lineMax = d3.max(line, d => d.value)
         if (lineMax > maxValue || index === 0) {
           maxValue = lineMax
         }
@@ -230,7 +298,7 @@ export default {
     minValue (lines) {
       let minValue = ''
       lines.forEach((line, index) => {
-        let lineMin = d3.min(line, (d) => d.value)
+        let lineMin = d3.min(line, d => d.value)
         if (lineMin < minValue || index === 0) {
           minValue = lineMin
         }
