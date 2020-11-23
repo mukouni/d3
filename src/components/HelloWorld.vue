@@ -2,13 +2,12 @@
   <div>
     <svg @mousemove="mouseover" :width="width" :height="height" id="d3-svg">
       <g id="x-axis" :style="{ transform: `translate(${0}px, ${padded.height + 10}px)` }" />
-      <g id="x-axis2" :style="{ transform: `translate(${0}px, ${padded.height - 20}px)` }" />
       <g
         id="y-axis"
         :style="{ transform: `translate(${margin.left}px, ${margin.top}px)` }"
         ref="yAxis"
       />
-      <g :style="{ transform: `translate(${0}px, ${margin.top}px)` }">
+      <g :style="{ transform: `translate(${paddingOuter}px, ${margin.top}px)` }">
         <path class="area" :d="paths.area" />
         <template v-for="(line, index) in paths.lines">
           <path
@@ -18,6 +17,7 @@
             :key="index"
             fill="none"
             stroke-width="1.5"
+            @click="(index)=>clickLine(index)"
           />
         </template>
         <path class="selector" :d="paths.selector" />
@@ -30,8 +30,7 @@
 </template>
 
 <script>
-// import * as d3 from 'd3'
-import * as d3 from 'd3-scale'
+import * as d3 from 'd3'
 
 import TWEEN from 'tween.js'
 import moment from 'moment'
@@ -74,7 +73,8 @@ export default {
         y: null
       },
       animatedData: [],
-      points: []
+      points: [],
+      paddingOuter: 0
     }
   },
   computed: {
@@ -130,37 +130,46 @@ export default {
 
     updateAxis () {
       if (this.padded.width < 0) return
+      let labelWidth = 60 // x label Width 60px
       let allDate = d3.timeDay
-        .range(this.viewDates[0], this.viewDates.slice(-1)[0])
+        .range(
+          this.viewDates[0],
+          moment(this.viewDates.slice(-1)[0]).add(1, 'day')
+        )
         .map(date => {
-          return moment(date).format('L')
+          return moment(date).toDate()
         })
-      let paddingOuter = 0.5
-      let paddingOuterWidth = this.padded.width / (allDate.length * paddingOuter * 2)
-      let maxAxisLabelNum = Math.floor((this.padded.width - paddingOuterWidth) / 65)
+      let maxAxisLabelNum = Math.floor(this.padded.width / labelWidth + 0) - 1
+      let firstIndex = 0
+      let scaleWidth = this.padded.width / (allDate.length + 1)
+      if (scaleWidth < labelWidth / 2) {
+        firstIndex = Math.ceil(labelWidth / 2 / scaleWidth) - 1
+      }
       let stepWidth = Math.ceil(allDate.length / maxAxisLabelNum)
-
       let xAxisLabels = []
       if (maxAxisLabelNum < allDate.length) {
+        let beforeIndex = firstIndex
         allDate.forEach((date, index) => {
-          if (index === 0 || index % stepWidth === 0) {
+          if (index === firstIndex || index === beforeIndex + stepWidth) {
+            beforeIndex = index
             xAxisLabels.push(date)
           }
         })
       } else {
         xAxisLabels = allDate
       }
-      console.log(this.viewDates[0], this.viewDates.slice(-1)[0], xAxisLabels)
       let scaleBand = d3
         .scaleBand()
         .range([this.margin.left, this.padded.width + this.margin.left])
         .domain(allDate)
-        .paddingOuter(paddingOuter)
+        .paddingOuter(0.5) // scaleWidth * 0.5 px
+      this.paddingOuter = scaleWidth * 0.5
 
-      this.scaled.x = d3
-        .scaleLinear()
-        .range([this.margin.left, this.padded.width + this.margin.left])
-        .domain([this.viewDates[0], this.viewDates.slice(-1)])
+      this.scaled.x = scaleBand
+      // this.scaled.x = d3
+      //   .scaleLinear()
+      //   .range([this.margin.left, this.padded.width + this.margin.left])
+      //   .domain([this.viewDates[0], this.viewDates.slice(-1)])
 
       this.scaled.y = d3
         .scaleLinear()
@@ -170,40 +179,26 @@ export default {
           this.maxValue(this.animatedData)
         ])
         .nice()
-      console.log(xAxisLabels)
-      // let gXAxisLabels = this.svg
-      //   .select('#x-axis')
-      //   .selectAll('g')
-      //   .data(xAxisLabels)
-
-      // console.log(scaleBand.step(), scaleBand.bandwidth(), scaleBand.step() === scaleBand.bandwidth())
-      // let enter = gXAxisLabels.enter()
-      // enter
-      //   .append('g')
-      //   .property('class', 'tick')
-      //   .attr('opacity', '1')
-      //   .attr('stroke', 'currentColor')
-      //   .attr('transform', (d, i) => { return `translate(${(allDate.findIndex(date => date === d) + 0) * scaleBand.step()},0)` })
-      //   .append('line')
-      //   .attr('stroke', 'currentColor')
-      //   .attr('y2', '6')
-      // gXAxisLabels.exit().remove()
 
       this.svg
         .selectAll('#x-axis')
         // .attr('transform', 'translate(30,' + (this.padded.height + 10) + ')')
         .call(
-          d3.axisBottom(
-            d3
-              .scaleTime()
-              .domain([moment(this.viewDates[0]).add(-1, 'day').format(), moment(this.viewDates.slice(-1)[0]).add(1, 'day').toDate()])
-              .range([this.margin.left, this.padded.width + this.margin.left])
-          )
+          d3
+            .axisBottom(scaleBand)
+            .tickFormat((date, i) => {
+              if (
+                i === 0 ||
+                new Date(xAxisLabels[i - 1]).getFullYear() <
+                  new Date(date).getFullYear()
+              ) {
+                return d3.timeFormat('%Y/%m/%d')(date)
+              } else {
+                return d3.timeFormat('%m/%d')(date)
+              }
+            })
+            .tickValues(xAxisLabels)
         )
-      this.svg
-        .selectAll('#x-axis2')
-        // .attr('transform', 'translate(30,' + (this.padded.height + 10) + ')')
-        .call(d3.axisBottom(scaleBand))
       this.svg
         .selectAll('#y-axis')
         // .attr('transform', 'translate(' + 30 + ',10)')
@@ -220,22 +215,26 @@ export default {
             date => date === moment(data.date).valueOf()
           )
           if (findIndex > -1) {
-            this.points[lineIndex].push({
-              x: this.scaled.x(moment(data.date).valueOf()),
-              y: this.scaled.y(data.value),
-              max: this.height
-            })
+            this.points[lineIndex].push(
+              Object.assign(data, {
+                x: this.scaled.x(moment(data.date).toDate()),
+                y: this.scaled.y(data.value),
+                max: this.height
+              })
+            )
           }
         })
       }
 
-      // this.paths.area = this.createArea(this.points);
-      // this.points.forEach((line, index) => {
-      //   if (!this.paths.lines[index]) {
-      //     this.paths.lines[index] = {}
-      //   }
-      //   this.paths.lines[index] = this.createLine(line)
-      // })
+      // this.paths.area = this.createArea(this.points)
+      this.points.forEach((line, index) => {
+        if (!this.paths.lines[index]) {
+          this.paths.lines[index] = {}
+        }
+        this.paths.lines[index] = this.createLine(line)
+      })
+    },
+    clickLine (index) {
     },
     mouseover ({ offsetX }) {
       if (this.points.length > 0) {
@@ -326,7 +325,7 @@ export default {
       [...new Array(3 * 7)].forEach((_, index) => {
         if (lineIndex === 0 || lineIndex === 4) {
           this.animatedData[lineIndex][this.animatedData[lineIndex].length] = {
-            date: moment()
+            date: moment('2020-12-25')
               .startOf('day')
               .add(index, 'day')
               .format('YYYY-MM-DD'),
@@ -336,7 +335,7 @@ export default {
         }
         if (lineIndex === 1 && index % 7 < 5) {
           this.animatedData[lineIndex][this.animatedData[lineIndex].length] = {
-            date: moment()
+            date: moment('2020-12-25')
               .startOf('day')
               .add(index, 'day')
               .format('YYYY-MM-DD'),
@@ -347,7 +346,7 @@ export default {
 
         if (lineIndex === 2 && index % 7 < 2) {
           this.animatedData[lineIndex][this.animatedData[lineIndex].length] = {
-            date: moment()
+            date: moment('2020-12-25')
               .startOf('day')
               .add(index, 'day')
               .format('YYYY-MM-DD'),
@@ -358,7 +357,7 @@ export default {
 
         if (lineIndex === 3 && index % 7 < 1) {
           this.animatedData[lineIndex][this.animatedData[lineIndex].length] = {
-            date: moment()
+            date: moment('2020-12-25')
               .startOf('day')
               .add(index, 'day')
               .format('YYYY-MM-DD'),
