@@ -12,12 +12,12 @@
         <template v-for="(line, index) in paths.lines">
           <path
             class="line"
-            :d="line"
-            :stroke="animatedData[index][0].color"
+            :d="line.path"
+            :stroke="line.color"
             :key="index"
             fill="none"
-            stroke-width="1.5"
-            @click="(index)=>clickLine(index)"
+            :stroke-width="paths.highlightLineIndex == index ? line.currentLineStrokeWidth : line.lineStrokeWidth"
+            @click="($event)=>clickLine($event, index)"
           />
         </template>
         <path class="selector" :d="paths.selector" />
@@ -65,7 +65,8 @@ export default {
       paths: {
         area: '',
         lines: [],
-        selector: ''
+        selector: '',
+        highlightLineIndex: -1
       },
       lastHoverPoint: {},
       scaled: {
@@ -74,7 +75,9 @@ export default {
       },
       animatedData: [],
       points: [],
-      paddingOuter: 0
+      paddingOuter: 0,
+      lineStrokeWidth: 1.5,
+      currentLineStrokeWidth: 3
     }
   },
   computed: {
@@ -231,14 +234,31 @@ export default {
         if (!this.paths.lines[index]) {
           this.paths.lines[index] = {}
         }
-        this.paths.lines[index] = this.createLine(line)
+        if (!this.paths.lines[index]) {
+          this.paths.lines[index] = {}
+        }
+        this.paths.lines[index].path = this.createLine(line)
+        this.paths.lines[index].strokeWidth = this.lineStrokeWidth
+        this.paths.lines[index].color = this.animatedData[index][0].color
       })
     },
-    clickLine (index) {
+    clickLine (event, index) {
+      console.log(index)
     },
-    mouseover ({ offsetX }) {
+    mouseover ({ offsetX, offsetY }) {
       if (this.points.length > 0) {
         const x = offsetX - this.margin.left
+        const y = offsetY - this.margin.top
+        const closestPointRange = this.getClosestPointRange(x, y)
+        closestPointRange.forEach(line => {
+          let height = this.pointHeight(line)
+          if (
+            height < this.lineStrokeWidth
+          ) {
+            this.paths.highlightLineIndex = line[0]._lineIndex
+          }
+        })
+        // console.log(closestPointRange)
         const closestPoint = this.getClosestPoint(x)
         if (this.lastHoverPoint.index !== closestPoint.index) {
           // const point = this.points[closestPoint.index]
@@ -304,6 +324,59 @@ export default {
       })
       return minValue
     },
+    getClosestPointRange (x, y) {
+      let adjacentXPoints = []
+      this.points.forEach((linePoints, lineIndex) => {
+        let diffX = linePoints.map((point, pointIndex) =>
+          Object.assign(point, {
+            _diffX: Math.abs(point.x - x),
+            _pointIndex: pointIndex
+          })
+        )
+        if (diffX.length >= 2) {
+          diffX.sort((a, b) => {
+            return a._diffX - b._diffX
+          })
+          adjacentXPoints.push(diffX.slice(0, 2))
+        }
+      })
+
+      let intervalLines = []
+
+      adjacentXPoints.forEach((line, lineIndex) => {
+        line.forEach(point => {
+          point.distance = Math.sqrt(
+            Math.pow(point.x - x, 2) + Math.pow(point.y - y, 2)
+          )
+          point._lineIndex = lineIndex
+        })
+        intervalLines.push(line)
+      })
+
+      return intervalLines
+    },
+
+    pointHeight (line) {
+      let bDistance = line[0].distance
+      let cDistance = line[1].distance
+      let aDistance = Math.sqrt(
+        Math.pow(line[0].x - line[1].x, 2) + Math.pow(line[0].y - line[1].y, 2)
+      )
+      return (
+        (1 / aDistance) *
+        Math.sqrt(
+          Math.pow(aDistance * bDistance, 2) -
+            Math.pow(
+              (Math.pow(aDistance, 2) +
+                Math.pow(bDistance, 2) -
+                Math.pow(cDistance, 2)) /
+                2,
+              2
+            )
+        )
+      )
+    },
+
     getClosestPoint (x) {
       return this.points
         .map((point, index) => ({
