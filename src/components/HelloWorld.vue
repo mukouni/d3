@@ -1,6 +1,6 @@
 <template>
   <div>
-    <svg @mousemove="mouseover" :width="width" :height="height" id="d3-svg">
+    <svg @mousemove="mouseover" @click="clickLine" :width="width" :height="height" id="d3-svg">
       <g id="x-axis" :style="{ transform: `translate(${0}px, ${padded.height + 10}px)` }" />
       <g
         id="y-axis"
@@ -16,8 +16,7 @@
             :stroke="line.color"
             :key="index"
             fill="none"
-            :stroke-width="paths.highlightLineIndex == index ? line.currentLineStrokeWidth : line.lineStrokeWidth"
-            @click="($event)=>clickLine($event, index)"
+            :stroke-width="paths.highlightLineIndex > -1 && index == paths.lines.length - 1 ? currentLineStrokeWidth : lineStrokeWidth"
           />
         </template>
         <path class="selector" :d="paths.selector" />
@@ -107,6 +106,20 @@ export default {
 
       this.updateAxis()
       this.updateLine()
+    },
+    'paths.highlightLineIndex' (val, oldVal) {
+      if (oldVal > -1) {
+        this.paths.lines[oldVal].strokeWidth = this.lineStrokeWidth
+      }
+      if (val > -1) {
+        console.log(val)
+        // this.paths.lines[val].strokeWidth = this.currentLineStrokeWidth
+        this.paths.lines.splice(
+          this.paths.lines.length - 1,
+          0,
+          ...this.paths.lines.splice(val, 1)
+        )
+      }
     }
   },
   methods: {
@@ -242,23 +255,26 @@ export default {
         this.paths.lines[index].color = this.animatedData[index][0].color
       })
     },
-    clickLine (event, index) {
-      console.log(index)
+    clickLine ({ offsetX, offsetY }, index) {
+      const x = offsetX - this.paddingOuter
+      const y = offsetY - this.margin.top
+      const closestPointRange = this.getClosestPointRange(x, y)
+      let hasChangehighlight = false
+      closestPointRange.forEach(line => {
+        let height = this.pointHeight(line)
+        if (
+          height < 1.2
+        ) {
+          console.log(line[0])
+          this.paths.highlightLineIndex = line[0]._lineIndex
+          hasChangehighlight = true
+        }
+      })
+      if (!hasChangehighlight) this.paths.highlightLineIndex = -1
     },
     mouseover ({ offsetX, offsetY }) {
       if (this.points.length > 0) {
-        const x = offsetX - this.margin.left
-        const y = offsetY - this.margin.top
-        const closestPointRange = this.getClosestPointRange(x, y)
-        closestPointRange.forEach(line => {
-          let height = this.pointHeight(line)
-          if (
-            height < this.lineStrokeWidth
-          ) {
-            this.paths.highlightLineIndex = line[0]._lineIndex
-          }
-        })
-        // console.log(closestPointRange)
+        const x = offsetX - this.paddingOuter
         const closestPoint = this.getClosestPoint(x)
         if (this.lastHoverPoint.index !== closestPoint.index) {
           // const point = this.points[closestPoint.index]
@@ -392,7 +408,8 @@ export default {
     this.svg = d3.select('#d3-svg')
 
     this.animatedData = []
-    let color = ['#7cb55d', '#5d72b5', '#d9ca64', '#b5785d', '#5daeb5'];
+    let color = ['green', 'blue', 'yellow', 'orange', 'red'];
+    // let color1 = ['#7cb55d', '#5d72b5', '#d9ca64', '#b5785d', '#5daeb5'];
     [...new Array(5)].forEach((_, lineIndex) => {
       if (!this.animatedData[lineIndex]) this.animatedData[lineIndex] = [];
       [...new Array(3 * 7)].forEach((_, index) => {
