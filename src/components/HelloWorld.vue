@@ -7,7 +7,7 @@
         :style="{ transform: `translate(${margin.left}px, ${margin.top}px)` }"
         ref="yAxis"
       />
-      <g :style="{ transform: `translate(${paddingOuter}px, ${margin.top}px)` }" @mousemove="mouseoverLine">
+      <g :style="{ transform: `translate(${paddingOuter}px, ${margin.top}px)` }">
         <path class="area" :d="paths.area" />
         <template v-for="(line, index) in paths.lines">
           <path
@@ -24,6 +24,19 @@
       <!-- <template v-for="(line, index) in animatedData">
         <g :style="{fill: line[0].color}" :key="index" :id="`points${index}`"></g>
       </template>-->
+      <g class="points" :style="{ transform: `translate(${paddingOuter}px, ${margin.top}px)` }">
+        <template v-for="(linePoint) in points">
+          <template v-for="(point, pointIndex) in linePoint">
+            <circle
+              :cx="point.x"
+              :cy="point.y"
+              r="5"
+              :fill="point.color"
+              :key="`${point.id} +'_'+${pointIndex}`"
+            />
+          </template>
+        </template>
+      </g>
     </svg>
   </div>
 </template>
@@ -224,20 +237,22 @@ export default {
     },
     updateLine () {
       this.points = []
-      for (const [lineIndex, data] of this.animatedData.entries()) {
-        if (!this.points[lineIndex]) {
-          this.points[lineIndex] = []
-        }
-        data.forEach((data, index) => {
+      for (const [lineIndex, lineData] of this.animatedData.entries()) {
+        lineData.forEach((data, index) => {
           let findIndex = this.viewDates.findIndex(
             date => date === moment(data.date).valueOf()
           )
           if (findIndex > -1) {
+            if (!this.points[lineIndex]) {
+              this.points[lineIndex] = []
+            }
             this.points[lineIndex].push(
               Object.assign(data, {
                 x: this.scaled.x(moment(data.date).toDate()),
                 y: this.scaled.y(data.value),
-                max: this.height
+                max: this.height,
+                color: data.color,
+                _pointIndex: index
               })
             )
           }
@@ -254,8 +269,8 @@ export default {
         }
         this.paths.lines[index].path = this.createLine(line)
         this.paths.lines[index].strokeWidth = this.lineStrokeWidth
-        this.paths.lines[index].color = this.animatedData[index][0].color
-        this.paths.lines[index]._id = this.animatedData[index][0].id
+        this.paths.lines[index].color = line[0].color
+        this.paths.lines[index]._id = line[0].id
       })
     },
     clickLine ({ offsetX, offsetY }, index) {
@@ -265,7 +280,8 @@ export default {
       let hasChangehighlight = false
       closestPointRange.forEach(line => {
         let height = this.pointHeight(line)
-        if (height < 5) { // 5px
+        if (height < 5) {
+          // 5px
           this.paths.highlightLineId = line[0]._id
           hasChangehighlight = true
         }
@@ -273,12 +289,12 @@ export default {
       if (!hasChangehighlight) this.paths.highlightLineId = -1
     },
     mouseover ({ offsetX, offsetY }) {
-
+      this.drawLine({ offsetX, offsetY })
     },
     mouseoverLine ({ offsetX, offsetY }) {
       if (this.points.length > 0) {
         const x = offsetX - this.paddingOuter
-        const closestPoint = this.getClosestPoint(x)
+        const closestPoint = this.getClosestPoints(x)
         if (this.lastHoverPoint.index !== closestPoint.index) {
           // const point = this.points[closestPoint.index]
           // this.paths.selector = this.createValueSelector([point]);
@@ -286,6 +302,11 @@ export default {
           this.lastHoverPoint = closestPoint
         }
       }
+    },
+    drawLine ({ offsetX, offsetY }) {
+      const x = offsetX - this.paddingOuter
+      const closestPoints = this.getClosestPoints(x)
+      console.log(closestPoints)
     },
     createArea: d3
       .area()
@@ -348,8 +369,7 @@ export default {
       this.points.forEach((linePoints, lineIndex) => {
         let diffX = linePoints.map((point, pointIndex) =>
           Object.assign(point, {
-            _diffX: point.x - x,
-            _pointIndex: pointIndex
+            _diffX: point.x - x
           })
         )
         if (diffX.length >= 2) {
@@ -357,12 +377,16 @@ export default {
             return Math.abs(a._diffX) - Math.abs(b._diffX)
           })
           if (diffX[0]._diffX > 0) {
-            let leftPoint = diffX.find(point => point._pointIndex === diffX[0]._pointIndex - 1)
+            let leftPoint = diffX.find(
+              point => point._pointIndex === diffX[0]._pointIndex - 1
+            )
             if (leftPoint) {
               adjacentXPoints.push([leftPoint, diffX[0]])
             }
           } else {
-            let rightPoint = diffX.find(point => point._pointIndex === diffX[0]._pointIndex + 1)
+            let rightPoint = diffX.find(
+              point => point._pointIndex === diffX[0]._pointIndex + 1
+            )
             diffX[0]._diffX = Math.abs(diffX[0]._diffX)
             if (rightPoint) {
               adjacentXPoints.push([diffX[0], rightPoint])
@@ -407,14 +431,22 @@ export default {
       )
     },
 
-    getClosestPoint (x) {
-      return this.points
-        .map((point, index) => ({
-          x: point.x,
-          diff: Math.abs(point.x - x),
-          index
-        }))
-        .reduce((memo, val) => (memo.diff < val.diff ? memo : val))
+    getClosestPoints (x) {
+      let closestPoints = []
+      this.points.forEach((linePoints, lineIndex) => {
+        let closestPoint = linePoints
+          .map((point, pointIndex) =>
+            Object.assign(point, {
+              _diffX: Math.abs(point.x - x)
+            })
+          )
+          .reduce((memo, val) => (memo._diffX < val._diffX ? memo : val))
+        console.log(closestPoint)
+        if (closestPoint._diffX < this.scaled.x.step()) {
+          closestPoints.push(closestPoint)
+        }
+      })
+      return closestPoints
     }
   },
 
