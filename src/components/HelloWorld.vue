@@ -7,7 +7,7 @@
         :style="{ transform: `translate(${margin.left}px, ${margin.top}px)` }"
         ref="yAxis"
       />
-      <g :style="{ transform: `translate(${paddingOuter}px, ${margin.top}px)` }">
+      <g :style="{ transform: `translate(${paddingOuter}px, ${margin.top}px)` }" @mousemove="mouseoverLine">
         <path class="area" :d="paths.area" />
         <template v-for="(line, index) in paths.lines">
           <path
@@ -16,7 +16,7 @@
             :stroke="line.color"
             :key="index"
             fill="none"
-            :stroke-width="paths.highlightLineIndex > -1 && index == paths.lines.length - 1 ? currentLineStrokeWidth : lineStrokeWidth"
+            :stroke-width="paths.highlightLineId > -1 && index == paths.lines.length - 1 ? currentLineStrokeWidth : lineStrokeWidth"
           />
         </template>
         <path class="selector" :d="paths.selector" />
@@ -65,7 +65,7 @@ export default {
         area: '',
         lines: [],
         selector: '',
-        highlightLineIndex: -1
+        highlightLineId: -1
       },
       lastHoverPoint: {},
       scaled: {
@@ -107,17 +107,19 @@ export default {
       this.updateAxis()
       this.updateLine()
     },
-    'paths.highlightLineIndex' (val, oldVal) {
+    'paths.highlightLineId' (val, oldVal) {
       if (oldVal > -1) {
-        this.paths.lines[oldVal].strokeWidth = this.lineStrokeWidth
+        let oldIndex = this.paths.lines.findIndex(
+          point => point._id === oldVal
+        )
+        this.paths.lines[oldIndex].strokeWidth = this.lineStrokeWidth
       }
       if (val > -1) {
-        console.log(val)
-        // this.paths.lines[val].strokeWidth = this.currentLineStrokeWidth
+        let index = this.paths.lines.findIndex(point => point._id === val)
         this.paths.lines.splice(
           this.paths.lines.length - 1,
           0,
-          ...this.paths.lines.splice(val, 1)
+          ...this.paths.lines.splice(index, 1)
         )
       }
     }
@@ -253,6 +255,7 @@ export default {
         this.paths.lines[index].path = this.createLine(line)
         this.paths.lines[index].strokeWidth = this.lineStrokeWidth
         this.paths.lines[index].color = this.animatedData[index][0].color
+        this.paths.lines[index]._id = this.animatedData[index][0].id
       })
     },
     clickLine ({ offsetX, offsetY }, index) {
@@ -262,17 +265,17 @@ export default {
       let hasChangehighlight = false
       closestPointRange.forEach(line => {
         let height = this.pointHeight(line)
-        if (
-          height < 1.2
-        ) {
-          console.log(line[0])
-          this.paths.highlightLineIndex = line[0]._lineIndex
+        if (height < 5) { // 5px
+          this.paths.highlightLineId = line[0]._id
           hasChangehighlight = true
         }
       })
-      if (!hasChangehighlight) this.paths.highlightLineIndex = -1
+      if (!hasChangehighlight) this.paths.highlightLineId = -1
     },
     mouseover ({ offsetX, offsetY }) {
+
+    },
+    mouseoverLine ({ offsetX, offsetY }) {
       if (this.points.length > 0) {
         const x = offsetX - this.paddingOuter
         const closestPoint = this.getClosestPoint(x)
@@ -345,15 +348,26 @@ export default {
       this.points.forEach((linePoints, lineIndex) => {
         let diffX = linePoints.map((point, pointIndex) =>
           Object.assign(point, {
-            _diffX: Math.abs(point.x - x),
+            _diffX: point.x - x,
             _pointIndex: pointIndex
           })
         )
         if (diffX.length >= 2) {
           diffX.sort((a, b) => {
-            return a._diffX - b._diffX
+            return Math.abs(a._diffX) - Math.abs(b._diffX)
           })
-          adjacentXPoints.push(diffX.slice(0, 2))
+          if (diffX[0]._diffX > 0) {
+            let leftPoint = diffX.find(point => point._pointIndex === diffX[0]._pointIndex - 1)
+            if (leftPoint) {
+              adjacentXPoints.push([leftPoint, diffX[0]])
+            }
+          } else {
+            let rightPoint = diffX.find(point => point._pointIndex === diffX[0]._pointIndex + 1)
+            diffX[0]._diffX = Math.abs(diffX[0]._diffX)
+            if (rightPoint) {
+              adjacentXPoints.push([diffX[0], rightPoint])
+            }
+          }
         }
       })
 
@@ -364,7 +378,7 @@ export default {
           point.distance = Math.sqrt(
             Math.pow(point.x - x, 2) + Math.pow(point.y - y, 2)
           )
-          point._lineIndex = lineIndex
+          point._id = point.id
         })
         intervalLines.push(line)
       })
@@ -420,7 +434,8 @@ export default {
               .add(index, 'day')
               .format('YYYY-MM-DD'),
             value: Math.ceil(Math.random() * 100),
-            color: color[lineIndex]
+            color: color[lineIndex],
+            id: lineIndex
           }
         }
         if (lineIndex === 1 && index % 7 < 5) {
@@ -430,7 +445,8 @@ export default {
               .add(index, 'day')
               .format('YYYY-MM-DD'),
             value: Math.ceil(Math.random() * 100),
-            color: color[lineIndex]
+            color: color[lineIndex],
+            id: lineIndex
           }
         }
 
@@ -441,7 +457,8 @@ export default {
               .add(index, 'day')
               .format('YYYY-MM-DD'),
             value: Math.ceil(Math.random() * 100),
-            color: color[lineIndex]
+            color: color[lineIndex],
+            id: lineIndex
           }
         }
 
@@ -452,7 +469,8 @@ export default {
               .add(index, 'day')
               .format('YYYY-MM-DD'),
             value: Math.ceil(Math.random() * 100),
-            color: color[lineIndex]
+            color: color[lineIndex],
+            id: lineIndex
           }
         }
       })
