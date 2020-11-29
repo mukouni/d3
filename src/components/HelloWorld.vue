@@ -1,13 +1,25 @@
 <template>
   <div>
-    <svg @mousemove="mouseover" @click="clickLine" :width="width" :height="height" id="d3-svg">
-      <g id="x-axis" :style="{ transform: `translate(${0}px, ${padded.height + 10}px)` }" />
+    <svg
+      @mousemove="mouseover"
+      @mouseleave="mouseleave"
+      @click="clickLine"
+      :width="width"
+      :height="height"
+      id="d3-svg"
+    >
+      <g
+        id="x-axis"
+        :style="{ transform: `translate(${0}px, ${padded.height + 10}px)` }"
+      />
       <g
         id="y-axis"
         :style="{ transform: `translate(${margin.left}px, ${margin.top}px)` }"
         ref="yAxis"
       />
-      <g :style="{ transform: `translate(${paddingOuter}px, ${margin.top}px)` }">
+      <g
+        :style="{ transform: `translate(${paddingOuter}px, ${margin.top}px)` }"
+      >
         <path class="area" :d="paths.area" />
         <template v-for="(line, index) in paths.lines">
           <path
@@ -16,7 +28,11 @@
             :stroke="line.color"
             :key="index"
             fill="none"
-            :stroke-width="paths.highlightLineId > -1 && index == paths.lines.length - 1 ? currentLineStrokeWidth : lineStrokeWidth"
+            :stroke-width="
+              paths.highlightLineId > -1 && index == paths.lines.length - 1
+                ? currentLineStrokeWidth
+                : lineStrokeWidth
+            "
           />
         </template>
         <path class="selector" :d="paths.selector" />
@@ -24,8 +40,11 @@
       <!-- <template v-for="(line, index) in animatedData">
         <g :style="{fill: line[0].color}" :key="index" :id="`points${index}`"></g>
       </template>-->
-      <g class="points" :style="{ transform: `translate(${paddingOuter}px, ${margin.top}px)` }">
-        <template v-for="(linePoint) in points">
+      <g
+        class="points"
+        :style="{ transform: `translate(${paddingOuter}px, ${margin.top}px)` }"
+      >
+        <template v-for="linePoint in points">
           <template v-for="(point, pointIndex) in linePoint">
             <circle
               :cx="point.x"
@@ -291,6 +310,17 @@ export default {
     mouseover ({ offsetX, offsetY }) {
       this.drawLine({ offsetX, offsetY })
     },
+    mouseleave ({ offsetX, offsetY }) {
+      let alignmentLine = d3
+        .select('#d3-svg')
+        .selectAll('.alignment-line')
+        .data([])
+
+      alignmentLine
+        .exit()
+        .attr('fill', 'red')
+        .remove()
+    },
     mouseoverLine ({ offsetX, offsetY }) {
       if (this.points.length > 0) {
         const x = offsetX - this.paddingOuter
@@ -305,8 +335,40 @@ export default {
     },
     drawLine ({ offsetX, offsetY }) {
       const x = offsetX - this.paddingOuter
-      const closestPoints = this.getClosestPoints(x)
-      console.log(closestPoints)
+      const closestPoints = this.getClosestPoints(x) || []
+      let alignmentLine = d3
+        .select('#d3-svg')
+        .selectAll('.alignment-line')
+        .data(closestPoints.length > 0 ? [0] : [])
+
+      alignmentLine
+        .enter()
+        .append('g')
+        .attr('class', 'alignment-line')
+        .attr(
+          'transform',
+          `translate(${this.paddingOuter}, ${this.margin.top})`
+        )
+
+      alignmentLine.exit().remove()
+      // let lineData = alignmentLine.data(closestPoints)
+
+      let line = alignmentLine
+        .selectAll('line')
+        .data(closestPoints.length > 0 ? closestPoints.slice(0, 1) : [])
+      line
+        .join('line')
+        .attr('x1', d => d.x)
+        .attr('x2', d => d.x)
+        .attr('y1', d => this.padded.height)
+        .style('stroke', '#000')
+      line.exit().remove()
+    },
+    randomLetters () {
+      return d3
+        .shuffle('abcdefghijklmnopqrstuvwxyz'.split(''))
+        .slice(0, Math.floor(6 + Math.random() * 20))
+        .sort()
     },
     createArea: d3
       .area()
@@ -441,7 +503,6 @@ export default {
             })
           )
           .reduce((memo, val) => (memo._diffX < val._diffX ? memo : val))
-        console.log(closestPoint)
         if (closestPoint._diffX < this.scaled.x.step()) {
           closestPoints.push(closestPoint)
         }
